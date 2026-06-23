@@ -1,6 +1,6 @@
 ---
 name: dev-state
-description: Atualiza e consulta o estado mínimo de desenvolvimento do projeto. Pode ser usada para continuidade de desenvolvimento entre sessões e máquinas. Use quando o usuário disser "retomar", "estado", "checkpoint", "salvar estado", "ajuda" ou pedir para registrar progresso, preparar retomada, pedir para mostrar ajuda ou fazer handoff entre máquinas.
+description: Continuidade de desenvolvimento entre sessões e máquinas. Use para retomar, consultar estado, registrar checkpoint, salvar estado, preparar handoff, sugerir mensagem de commit ou mostrar ajuda.
 ---
 
 # Objetivo
@@ -8,6 +8,8 @@ description: Atualiza e consulta o estado mínimo de desenvolvimento do projeto.
 Manter `docs/dev/state.md` como a fonte mínima de continuidade operacional do projeto, sem duplicar documentação técnica, regras de negócio, especificações formais ou histórico completo de conversas.
 
 A skill deve funcionar de forma plug-and-play no repositório atual. Antes de executar comandos operacionais, deve verificar se a estrutura mínima do fluxo existe e inicializar automaticamente o que estiver faltando, desde que isso possa ser feito de forma segura, leve e idempotente.
+
+O arquivo de estado deve registrar o estado técnico e produtivo da tarefa. Ele não deve registrar pendências genéricas de Git, como commit, push, `git add` ou revisão de diff, quando essas etapas fizerem parte do fluxo normal após `salvar estado`.
 
 ---
 
@@ -47,7 +49,8 @@ Também use esta skill quando o usuário pedir para:
 - preparar retomada;
 - fazer handoff entre máquinas;
 - atualizar o estado de desenvolvimento;
-- continuar trabalho iniciado em outro computador ou workspace.
+- continuar trabalho iniciado em outro computador ou workspace;
+- usar o estado salvo como referência para a mensagem de commit.
 
 ---
 
@@ -83,7 +86,7 @@ Comandos:
   retomar                Mostra de onde continuar.
   estado                 Mostra o estado atual sem atualizar progresso.
   checkpoint             Registra avanço intermediário.
-  salvar estado          Salva o ponto de parada para retomar depois.
+  salvar estado          Salva o estado técnico e sugere mensagem de commit.
   salvar estado: ...     Salva o estado usando sua observação como prioridade.
 
 Primeira execução em um projeto:
@@ -98,8 +101,8 @@ Uso comum:
   retomar
 
   salvar estado
-  git add docs/dev/state.md AGENTS.md
-  git commit -m "docs: atualiza estado de desenvolvimento"
+  git add <arquivos>
+  git commit -m "<mensagem sugerida>"
   git push
 ```
 
@@ -209,7 +212,7 @@ Comandos curtos reconhecidos:
 - `retomar`: ler `docs/dev/state.md` e indicar objetivamente de onde continuar.
 - `estado`: consultar `docs/dev/state.md` sem alterar arquivos, salvo bootstrap inicial necessário.
 - `checkpoint`: atualizar `docs/dev/state.md` com um registro intermediário curto.
-- `salvar estado`: atualizar `docs/dev/state.md` ao encerrar ou pausar uma tarefa.
+- `salvar estado`: atualizar `docs/dev/state.md` ao encerrar ou pausar uma tarefa, sem registrar pendências genéricas de Git.
 - `salvar estado: ...`: atualizar `docs/dev/state.md` usando a observação do usuário como orientação principal.
 - `ajuda dev-state`: mostrar a ajuda rápida da skill sem alterar arquivos.
 
@@ -266,6 +269,7 @@ Comportamento:
 5. Atualizar o próximo passo, se necessário.
 6. Remover informações obsoletas, se houver.
 7. Não transformar o arquivo em changelog.
+8. Não registrar pendências genéricas de Git, commit, push ou revisão de diff.
 
 ---
 
@@ -280,14 +284,32 @@ Comportamento:
 3. Registrar:
    - tarefa ativa;
    - branch atual;
-   - último estado conhecido;
-   - próximo passo;
+   - último estado técnico conhecido;
+   - próximo passo técnico ou funcional;
    - decisões recentes relevantes;
-   - arquivos relevantes;
-   - comandos úteis, se houver;
+   - arquivos relevantes para retomada;
+   - comandos úteis de validação, se houver;
    - observações para retomada.
 4. Remover informações obsoletas.
 5. Manter o arquivo curto e operacional.
+6. Não registrar pendências genéricas de Git, commit, push ou revisão de diff.
+7. Não registrar que há commit pendente apenas porque o usuário ainda vai commitar após salvar o estado.
+8. Não registrar que há revisão pendente apenas porque existem alterações ainda não commitadas.
+9. Ao responder ao usuário, sugerir uma mensagem de commit baseada no estado salvo, quando houver informação suficiente.
+10. Não escrever a sugestão de commit dentro de `docs/dev/state.md`.
+11. Não executar `git add`, `git commit`, `git push`, merge, rebase ou alteração de branch sem pedido explícito.
+
+Resposta recomendada após salvar:
+
+```text
+Estado salvo.
+
+Sugestão de commit:
+<mensagem sugerida>
+
+Próximo passo técnico registrado:
+<próximo passo>
+```
 
 ---
 
@@ -303,6 +325,39 @@ Comportamento:
 4. Preservar informações ainda relevantes.
 5. Remover informações obsoletas.
 6. Não registrar detalhes desnecessários.
+7. Não registrar pendências genéricas de Git, commit, push ou revisão de diff.
+8. Se a observação do usuário mencionar commit, tratar isso como contexto para a resposta, não como pendência a ser registrada no estado, salvo se o usuário pedir expressamente.
+9. Ao responder ao usuário, sugerir uma mensagem de commit baseada no estado salvo e na observação explícita.
+10. Não escrever a sugestão de commit dentro de `docs/dev/state.md`.
+
+---
+
+# Estado operacional versus fluxo Git
+
+`docs/dev/state.md` deve registrar apenas o estado técnico e produtivo da tarefa.
+
+Não registrar como pendência:
+
+- commit pendente;
+- revisão pendente genérica;
+- `git add` pendente;
+- `git commit` pendente;
+- `git push` pendente;
+- arquivos modificados apenas aguardando commit;
+- necessidade genérica de revisar o diff antes do commit.
+
+Essas etapas fazem parte do fluxo operacional normal após `salvar estado` e não devem ser tratadas como pendências de desenvolvimento.
+
+O próximo passo registrado no `state.md` deve representar o próximo trabalho técnico ou funcional a ser feito depois da retomada, não o próximo comando Git.
+
+Só registrar revisão pendente quando houver uma revisão técnica substantiva explicitamente indicada pelo usuário ou inerente à tarefa, por exemplo:
+
+- revisar regra de negócio específica;
+- validar comportamento com teste específico;
+- revisar decisão arquitetural;
+- conferir impacto em módulo crítico.
+
+Não registrar revisão pendente apenas porque existem alterações ainda não commitadas.
 
 ---
 
@@ -357,13 +412,46 @@ Ao atualizar `docs/dev/state.md`:
 1. Identificar a tarefa principal em andamento.
 2. Identificar a branch atual com `git branch --show-current`, somente quando for necessário atualizar o estado.
 3. Resumir o progresso real da sessão.
-4. Registrar o próximo passo executável.
+4. Registrar o próximo passo técnico ou funcional.
 5. Registrar apenas decisões recentes que afetem implementação futura.
 6. Listar apenas arquivos realmente relevantes para retomar o trabalho.
 7. Incluir comandos úteis somente se forem necessários para validação, build, teste ou execução local.
 8. Remover pendências já concluídas.
 9. Preservar informações ainda úteis.
 10. Manter o arquivo curto, objetivo e operacional.
+11. Não registrar pendências genéricas de Git como parte do estado.
+
+---
+
+# Regras para sugestão de commit
+
+Quando `salvar estado` ou `salvar estado: ...` for executado, sugerir uma mensagem de commit na resposta final, se houver informação suficiente.
+
+A sugestão deve ser curta, objetiva e baseada no estado salvo.
+
+Preferir o formato convencional quando possível:
+
+```text
+tipo: descrição curta
+```
+
+Exemplos:
+
+```text
+feat: implementa continuidade mínima com dev-state
+```
+
+```text
+docs: atualiza estado de desenvolvimento
+```
+
+```text
+refactor: ajusta fluxo de recuperação por similaridade
+```
+
+Não escrever a sugestão de commit dentro de `docs/dev/state.md`.
+
+Não executar commit sem pedido explícito.
 
 ---
 
@@ -425,4 +513,4 @@ Não altere código da aplicação como parte do fluxo de estado.
 
 Não execute comandos destrutivos.
 
-Não faça commit, push, merge, rebase ou alteração de branch sem pedido explícito do usuário.
+Não faça commit, push, merge, rebase ou alteração de branch sem pedido explícito.
